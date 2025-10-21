@@ -102,7 +102,11 @@ class MapTab(ttk.Frame):
         ctrl_appearance = ttk.LabelFrame(frm_left, text="Apariencia del Mapa"); ctrl_appearance.pack(fill=tk.X, padx=5, pady=5)
         appearance_row1 = ttk.Frame(ctrl_appearance); appearance_row1.pack(fill=tk.X, pady=2)
         ttk.Label(appearance_row1, text="Paleta:").pack(side=tk.LEFT, padx=5)
-        palettes = ["viridis","plasma","inferno","magma","cividis","turbo","Spectral","coolwarm","copper","winter","summer","autumn","spring","hot","bone"]
+        palettes = [
+            "viridis", "plasma", "inferno", "magma", "cividis", "turbo",
+            "Spectral", "coolwarm", "Reds", "Blues", "Greens", "YlOrBr",
+            "PuBuGn", "RdYlBu", "cool", "hot", "ocean", "terrain"
+        ]
         self.cmb_palette = ttk.Combobox(appearance_row1, values=palettes, state="readonly", width=10); self.cmb_palette.pack(side=tk.LEFT, padx=5); self.cmb_palette.set("Spectral")
         ttk.Label(appearance_row1, text="N° colores:").pack(side=tk.LEFT, padx=5)
         self.ent_pal_n = ttk.Entry(appearance_row1, width=5); self.ent_pal_n.pack(side=tk.LEFT, padx=5); self.ent_pal_n.insert(0,"0")
@@ -132,6 +136,11 @@ class MapTab(ttk.Frame):
         self.label_color_entry = ttk.Entry(appearance_row4, width=8)
         self.label_color_entry.pack(side=tk.LEFT, padx=5)
         self.label_color_entry.insert(0, "black")
+
+        ttk.Label(appearance_row4, text="Fuente:").pack(side=tk.LEFT, padx=5)
+        self.label_font_entry = ttk.Entry(appearance_row4, width=15)
+        self.label_font_entry.pack(side=tk.LEFT, padx=5)
+        self.label_font_entry.insert(0, "Palatino Linotype")
 
         ttk.Label(appearance_row4, text="DPI:").pack(side=tk.LEFT, padx=15)
         self.ent_dpi = ttk.Entry(appearance_row4,width=5); self.ent_dpi.pack(side=tk.LEFT, padx=5); self.ent_dpi.insert(0,"100")
@@ -174,6 +183,7 @@ class MapTab(ttk.Frame):
         self.zoom_region_combo.pack(side=tk.LEFT, padx=5)
 
         ttk.Button(appearance_row9, text="Zoom", command=self.show_map).pack(side=tk.LEFT, padx=5)
+        ttk.Button(appearance_row9, text="Zoom -", command=self.zoom_out_discretely).pack(side=tk.LEFT, padx=5)
         ttk.Button(appearance_row9, text="Restaurar", command=self.restore_zoom).pack(side=tk.LEFT, padx=5)
 
         action_frame = ttk.Frame(frm_left); action_frame.pack(fill=tk.X, padx=5, pady=10)
@@ -185,11 +195,22 @@ class MapTab(ttk.Frame):
         self.toolbar_frame = ttk.Frame(frm_right)
         self.toolbar_frame.pack(fill=tk.X, side=tk.TOP)
 
-        self.canvas_map = tk.Canvas(frm_right,bg="white"); self.canvas_map.pack(fill=tk.BOTH,expand=True)
-        v2 = ttk.Scrollbar(frm_right,orient="vertical",command=self.canvas_map.yview); v2.pack(side=tk.RIGHT,fill=tk.Y)
-        h2 = ttk.Scrollbar(frm_right,orient="horizontal",command=self.canvas_map.xview); h2.pack(side=tk.BOTTOM,fill=tk.X)
-        self.canvas_map.configure(yscrollcommand=v2.set, xscrollcommand=h2.set)
-        self.frm_map = ttk.Frame(self.canvas_map); self.canvas_map.create_window((0,0),window=self.frm_map,anchor="nw")
+        map_area_frame = ttk.Frame(frm_right)
+        map_area_frame.pack(fill=tk.BOTH, expand=True)
+
+        v2 = ttk.Scrollbar(map_area_frame, orient="vertical")
+        v2.pack(side=tk.RIGHT, fill=tk.Y)
+        h2 = ttk.Scrollbar(map_area_frame, orient="horizontal")
+        h2.pack(side=tk.BOTTOM, fill=tk.X)
+
+        self.canvas_map = tk.Canvas(map_area_frame, bg="white", yscrollcommand=v2.set, xscrollcommand=h2.set)
+        self.canvas_map.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        v2.config(command=self.canvas_map.yview)
+        h2.config(command=self.canvas_map.xview)
+
+        self.frm_map = ttk.Frame(self.canvas_map)
+        self.canvas_map.create_window((0,0), window=self.frm_map, anchor="nw")
         self.frm_map.bind("<Configure>", lambda e: self.canvas_map.configure(scrollregion=self.canvas_map.bbox("all")))
 
     def export_to_excel(self):
@@ -265,6 +286,17 @@ class MapTab(ttk.Frame):
     def restore_zoom(self):
         self.zoom_region_var.set("")
         self.show_map()
+
+    def zoom_out_discretely(self):
+        if self.fig_canvas:
+            ax = self.fig_canvas.figure.axes[0]
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            width = xlim[1] - xlim[0]
+            height = ylim[1] - ylim[0]
+            ax.set_xlim(xlim[0] - width * 0.1, xlim[1] + width * 0.1)
+            ax.set_ylim(ylim[0] - height * 0.1, ylim[1] + height * 0.1)
+            self.fig_canvas.draw()
 
     def load_shapefile(self):
         path = filedialog.askopenfilename(title="GeoJSON", filetypes=[("GeoJSON","*.json"),("All","*.*")])
@@ -465,6 +497,7 @@ class MapTab(ttk.Frame):
             texts = []
             label_size = int(self.label_size_entry.get())
             label_color = self.label_color_entry.get()
+            label_font = self.label_font_entry.get()
             for _, r in gdf.iterrows():
                 if r.geometry is not None:
                     pt = r.geometry.representative_point()
@@ -481,7 +514,7 @@ class MapTab(ttk.Frame):
                         text_to_show = f"{r[self.geojson_state_column_name]}\n({r['Casos']:.0f})"
 
                     if text_to_show:
-                        texts.append(ax.text(pt.x, pt.y, text_to_show, ha='center', fontsize=label_size, color=label_color))
+                        texts.append(ax.text(pt.x, pt.y, text_to_show, ha='center', fontsize=label_size, color=label_color, fontname=label_font))
 
             if texts:
                 adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5))
@@ -492,10 +525,14 @@ class MapTab(ttk.Frame):
     def save_map(self):
         path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG","*.png"),("JPG","*.jpg"),("All","*.*")])
         if not path: return
-        fig = self.make_fig()
-        if not fig: return
-        try: fig.savefig(path); messagebox.showinfo("Éxito", f"Guardado en:\n{path}")
-        except Exception as e: messagebox.showerror("Error", str(e))
+        if self.fig_canvas is None:
+            messagebox.showerror("Error", "Primero debe generar un mapa.")
+            return
+        try:
+            self.fig_canvas.figure.savefig(path)
+            messagebox.showinfo("Éxito", f"Guardado en:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
 
     def log(self, message, level="INFO"):
         try: self.txt_out.insert(tk.END, f"[{level}] {message}\n"); self.txt_out.see(tk.END)
