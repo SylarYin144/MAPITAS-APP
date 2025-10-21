@@ -55,7 +55,6 @@ class MapTab(ttk.Frame):
         file_frame = ttk.Frame(ctrl_main)
         file_frame.pack(fill=tk.X, pady=5)
         ttk.Button(file_frame, text="Cargar GeoJSON", command=self.load_shapefile).pack(side=tk.LEFT, padx=5)
-        ttk.Button(file_frame, text="Cargar Datos para Filtros", command=self._load_data).pack(side=tk.LEFT, padx=5)
 
         # Botones para nuevas funcionalidades
         ttk.Button(file_frame, text="Exportar Datos (Excel)", command=self.export_to_excel).pack(side=tk.LEFT, padx=5)
