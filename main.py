@@ -5,12 +5,28 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import pandas as pd
 import geopandas as gpd
-import numpy as np
-import matplotlib
-from matplotlib.colors import SymLogNorm, ListedColormap
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from adjustText import adjust_text
+try:
+    import pandas as pd
+    import geopandas as gpd
+    import numpy as np
+    import matplotlib
+    from matplotlib.colors import SymLogNorm, ListedColormap
+    from matplotlib.figure import Figure
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+    from adjustText import adjust_text
+except ImportError as e:
+    import tkinter as tk
+    from tkinter import messagebox
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "Error de Dependencia",
+        f"Falta una librería necesaria: {e.name}.\n\n"
+        "Por favor, instala las dependencias ejecutando el siguiente comando en tu terminal:\n\n"
+        "pip install -r requirements.txt"
+    )
+    exit()
+
 import os # Añadido para manejo de archivos
 import traceback # Añadido para logging de errores
 
