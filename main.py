@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib
 from matplotlib.colors import SymLogNorm, ListedColormap
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import os # Añadido para manejo de archivos
 import traceback # Añadido para logging de errores
 
@@ -37,7 +37,7 @@ class MapTab(ttk.Frame):
         self.invert_cmap = tk.BooleanVar(value=False)
         self.state_entries = {}
         self.cases_data = None
-        self.zoom_region_var = tk.StringVar()
+        self.toolbar = None
 
         self.MANUAL_STATE_DATA_OPTION = "(Usar Datos de Estado Manuales)"
         self.geojson_state_column_name = None
@@ -101,7 +101,7 @@ class MapTab(ttk.Frame):
         ttk.Label(appearance_row3, text="Valores CB (coma):").pack(side=tk.LEFT, padx=5)
         self.ent_vals = ttk.Entry(appearance_row3,width=15); self.ent_vals.pack(side=tk.LEFT, padx=5)
         appearance_row4 = ttk.Frame(ctrl_appearance); appearance_row4.pack(fill=tk.X, pady=2)
-        ttk.Checkbutton(appearance_row4, text="Mostrar etiquetas estados", variable=self.show_labels).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(appearance_row4, text="Mostrar Nombres", variable=self.show_labels).pack(side=tk.LEFT, padx=5)
         ttk.Label(appearance_row4, text="DPI:").pack(side=tk.LEFT, padx=15)
         self.ent_dpi = ttk.Entry(appearance_row4,width=5); self.ent_dpi.pack(side=tk.LEFT, padx=5); self.ent_dpi.insert(0,"100")
         ttk.Label(appearance_row4, text="Grosor línea:").pack(side=tk.LEFT, padx=5)
@@ -136,14 +136,6 @@ class MapTab(ttk.Frame):
         self.prevalence_var = tk.StringVar()
         ttk.Label(appearance_row8, text="Prevalencia:").pack(side=tk.LEFT, padx=15)
         ttk.Label(appearance_row8, textvariable=self.prevalence_var).pack(side=tk.LEFT, padx=5)
-
-        appearance_row9 = ttk.Frame(ctrl_appearance); appearance_row9.pack(fill=tk.X, pady=2)
-        ttk.Label(appearance_row9, text="Zoom a Región:").pack(side=tk.LEFT, padx=5)
-        self.zoom_region_combo = ttk.Combobox(appearance_row9, textvariable=self.zoom_region_var, state="readonly", width=20)
-        self.zoom_region_combo.pack(side=tk.LEFT, padx=5)
-
-        ttk.Button(appearance_row9, text="Zoom", command=self.show_map).pack(side=tk.LEFT, padx=5)
-        ttk.Button(appearance_row9, text="Restaurar", command=self.restore_zoom).pack(side=tk.LEFT, padx=5)
 
         action_frame = ttk.Frame(frm_left); action_frame.pack(fill=tk.X, padx=5, pady=10)
         ttk.Button(action_frame, text="Generar Mapa", command=self.show_map).pack(side=tk.LEFT, padx=10)
@@ -227,10 +219,6 @@ class MapTab(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar el archivo: {e}")
 
-    def restore_zoom(self):
-        self.zoom_region_var.set("")
-        self.show_map()
-
     def load_shapefile(self):
         path = filedialog.askopenfilename(title="GeoJSON", filetypes=[("GeoJSON","*.json"),("All","*.*")])
         if not path: return
@@ -300,11 +288,6 @@ class MapTab(ttk.Frame):
                 if hasattr(self, 'state_entries'):
                     self.state_entries[state_name_from_geojson] = (pop_entry, case_entry)
 
-            # Actualizar el combobox de zoom
-            region_names = sorted(list(self.state_entries.keys()))
-            self.zoom_region_combo['values'] = region_names
-            self.zoom_region_var.set("") # Limpiar selección anterior
-
             if hasattr(self, 'state_data_frame') and self.state_data_frame.winfo_exists():
                  self.state_data_frame.update_idletasks()
 
@@ -326,8 +309,19 @@ class MapTab(ttk.Frame):
     def show_map(self):
         fig = self.make_fig()
         if not fig: return
-        if self.fig_canvas: self.fig_canvas.get_tk_widget().destroy()
-        self.fig_canvas = FigureCanvasTkAgg(fig,master=self.frm_map); self.fig_canvas.draw(); self.fig_canvas.get_tk_widget().pack(fill=tk.BOTH,expand=True)
+        if self.fig_canvas:
+            self.fig_canvas.get_tk_widget().destroy()
+        if self.toolbar:
+            self.toolbar.destroy()
+
+        self.fig_canvas = FigureCanvasTkAgg(fig, master=self.frm_map)
+        self.fig_canvas.draw()
+        self.fig_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        self.toolbar = NavigationToolbar2Tk(self.fig_canvas, self.frm_map)
+        self.toolbar.update()
+        self.fig_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
         self.canvas_map.config(scrollregion=self.canvas_map.bbox("all"))
 
     def make_fig(self):
@@ -382,17 +376,9 @@ class MapTab(ttk.Frame):
         fig = Figure(figsize=(10,8), dpi=dpi); ax = fig.add_subplot(111)
         gdf.plot(column=col_to_plot, cmap=cmap, norm=norm, edgecolor="black", linewidth=lw, ax=ax, missing_kwds={'color': 'lightgrey', "hatch": "///", "label": "Sin datos"})
 
-        # Lógica de Zoom
-        zoom_region = self.zoom_region_var.get()
-        if zoom_region:
-            region_geom = gdf[gdf[self.geojson_state_column_name] == zoom_region]
-            if not region_geom.empty:
-                bounds = region_geom.total_bounds
-                ax.set_xlim(bounds[0] - 0.1, bounds[2] + 0.1)
-                ax.set_ylim(bounds[1] - 0.1, bounds[3] + 0.1)
-
         ax.set_axis_off()
-        metric_display = "Datos Manuales"
+
+        metric_display = self.visualization_var.get()
         subtitle_display_state_col = self.geojson_state_column_name
         default_title = title if title else f"Mapa Coroplético - {metric_display}"
         default_subtitle = subt if subt else f"Agregado por {subtitle_display_state_col}"
@@ -410,16 +396,11 @@ class MapTab(ttk.Frame):
         default_cbt = cbt if cbt else metric_display
         cbar.set_label(default_cbt, fontsize=cbtsz, color=cbtcol)
         if self.show_labels.get():
-            for _,r in gdf.iterrows():
-                if r.geometry is not None and pd.notnull(r[col_to_plot]):
-                    pt = r.geometry.representative_point();
+            for _, r in gdf.iterrows():
+                if r.geometry is not None and pd.notnull(r[self.geojson_state_column_name]):
+                    pt = r.geometry.representative_point()
                     if pt.is_empty or not pt.is_valid: continue
-                    val_to_show = r[col_to_plot]
-                    if abs(val_to_show) >= 1000: txt = f"{val_to_show:,.0f}"
-                    elif abs(val_to_show) >= 10: txt = f"{val_to_show:,.1f}"
-                    elif abs(val_to_show) >= 0.1: txt = f"{val_to_show:.2f}"
-                    else: txt = f"{val_to_show:.2e}"
-                    ax.annotate(txt, xy=(pt.x,pt.y), ha='center', fontsize=cbksz, color=cbkcol)
+                    ax.annotate(r[self.geojson_state_column_name], xy=(pt.x, pt.y), ha='center', fontsize=cbksz, color=cbkcol)
 
         self.prevalence_var.set(f"{gdf[col_to_plot].sum():.4f}")
         fig.tight_layout(); return fig
