@@ -38,6 +38,7 @@ class MapTab(ttk.Frame):
         self.state_entries = {}
         self.cases_data = None
         self.toolbar = None
+        self.zoom_region_var = tk.StringVar()
 
         self.MANUAL_STATE_DATA_OPTION = "(Usar Datos de Estado Manuales)"
         self.geojson_state_column_name = None
@@ -137,11 +138,23 @@ class MapTab(ttk.Frame):
         ttk.Label(appearance_row8, text="Prevalencia:").pack(side=tk.LEFT, padx=15)
         ttk.Label(appearance_row8, textvariable=self.prevalence_var).pack(side=tk.LEFT, padx=5)
 
+        appearance_row9 = ttk.Frame(ctrl_appearance); appearance_row9.pack(fill=tk.X, pady=2)
+        ttk.Label(appearance_row9, text="Zoom a Región:").pack(side=tk.LEFT, padx=5)
+        self.zoom_region_combo = ttk.Combobox(appearance_row9, textvariable=self.zoom_region_var, state="readonly", width=20)
+        self.zoom_region_combo.pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(appearance_row9, text="Zoom", command=self.show_map).pack(side=tk.LEFT, padx=5)
+        ttk.Button(appearance_row9, text="Restaurar", command=self.restore_zoom).pack(side=tk.LEFT, padx=5)
+
         action_frame = ttk.Frame(frm_left); action_frame.pack(fill=tk.X, padx=5, pady=10)
         ttk.Button(action_frame, text="Generar Mapa", command=self.show_map).pack(side=tk.LEFT, padx=10)
         ttk.Button(action_frame, text="Guardar Mapa", command=self.save_map).pack(side=tk.LEFT, padx=10)
         self.txt_out = tk.Text(frm_left, height=4); self.txt_out.pack(fill=tk.BOTH, padx=5, pady=5, expand=True)
         frm_right = ttk.Frame(paned); paned.add(frm_right, weight=2)
+
+        self.toolbar_frame = ttk.Frame(frm_right)
+        self.toolbar_frame.pack(fill=tk.X, side=tk.TOP)
+
         self.canvas_map = tk.Canvas(frm_right,bg="white"); self.canvas_map.pack(fill=tk.BOTH,expand=True)
         v2 = ttk.Scrollbar(frm_right,orient="vertical",command=self.canvas_map.yview); v2.pack(side=tk.RIGHT,fill=tk.Y)
         h2 = ttk.Scrollbar(frm_right,orient="horizontal",command=self.canvas_map.xview); h2.pack(side=tk.BOTTOM,fill=tk.X)
@@ -219,6 +232,10 @@ class MapTab(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar el archivo: {e}")
 
+    def restore_zoom(self):
+        self.zoom_region_var.set("")
+        self.show_map()
+
     def load_shapefile(self):
         path = filedialog.askopenfilename(title="GeoJSON", filetypes=[("GeoJSON","*.json"),("All","*.*")])
         if not path: return
@@ -288,6 +305,11 @@ class MapTab(ttk.Frame):
                 if hasattr(self, 'state_entries'):
                     self.state_entries[state_name_from_geojson] = (pop_entry, case_entry)
 
+            # Actualizar el combobox de zoom
+            region_names = sorted(list(self.state_entries.keys()))
+            self.zoom_region_combo['values'] = region_names
+            self.zoom_region_var.set("") # Limpiar selección anterior
+
             if hasattr(self, 'state_data_frame') and self.state_data_frame.winfo_exists():
                  self.state_data_frame.update_idletasks()
 
@@ -309,18 +331,21 @@ class MapTab(ttk.Frame):
     def show_map(self):
         fig = self.make_fig()
         if not fig: return
+
+        # Limpiar widgets anteriores
         if self.fig_canvas:
             self.fig_canvas.get_tk_widget().destroy()
         if self.toolbar:
             self.toolbar.destroy()
 
+        # Crear y empaquetar el canvas del mapa
         self.fig_canvas = FigureCanvasTkAgg(fig, master=self.frm_map)
         self.fig_canvas.draw()
         self.fig_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
-        self.toolbar = NavigationToolbar2Tk(self.fig_canvas, self.frm_map)
+        # Crear y empaquetar la barra de herramientas en su frame dedicado
+        self.toolbar = NavigationToolbar2Tk(self.fig_canvas, self.toolbar_frame)
         self.toolbar.update()
-        self.fig_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         self.canvas_map.config(scrollregion=self.canvas_map.bbox("all"))
 
@@ -375,6 +400,15 @@ class MapTab(ttk.Frame):
         if inv: cmap = cmap.reversed()
         fig = Figure(figsize=(10,8), dpi=dpi); ax = fig.add_subplot(111)
         gdf.plot(column=col_to_plot, cmap=cmap, norm=norm, edgecolor="black", linewidth=lw, ax=ax, missing_kwds={'color': 'lightgrey', "hatch": "///", "label": "Sin datos"})
+
+        # Lógica de Zoom por región
+        zoom_region = self.zoom_region_var.get()
+        if zoom_region:
+            region_geom = gdf[gdf[self.geojson_state_column_name] == zoom_region]
+            if not region_geom.empty:
+                bounds = region_geom.total_bounds
+                ax.set_xlim(bounds[0] - 0.1, bounds[2] + 0.1)
+                ax.set_ylim(bounds[1] - 0.1, bounds[3] + 0.1)
 
         ax.set_axis_off()
 
