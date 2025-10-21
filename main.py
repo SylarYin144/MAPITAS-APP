@@ -120,8 +120,19 @@ class MapTab(ttk.Frame):
         self.ent_vals = ttk.Entry(appearance_row3,width=15); self.ent_vals.pack(side=tk.LEFT, padx=5)
         appearance_row4 = ttk.Frame(ctrl_appearance); appearance_row4.pack(fill=tk.X, pady=2)
         ttk.Label(appearance_row4, text="Etiquetas:").pack(side=tk.LEFT, padx=5)
-        self.label_combo = ttk.Combobox(appearance_row4, textvariable=self.label_option_var, values=["Ninguna", "Nombres de Región", "Nombres (solo con casos)", "Número de Casos"], state="readonly", width=25)
+        self.label_combo = ttk.Combobox(appearance_row4, textvariable=self.label_option_var, values=["Ninguna", "Nombres de Región", "Nombres (solo con casos)", "Número de Casos", "Nombre y Casos"], state="readonly", width=25)
         self.label_combo.pack(side=tk.LEFT, padx=5)
+
+        ttk.Label(appearance_row4, text="Tamaño:").pack(side=tk.LEFT, padx=5)
+        self.label_size_entry = ttk.Entry(appearance_row4, width=5)
+        self.label_size_entry.pack(side=tk.LEFT, padx=5)
+        self.label_size_entry.insert(0, "8")
+
+        ttk.Label(appearance_row4, text="Color:").pack(side=tk.LEFT, padx=5)
+        self.label_color_entry = ttk.Entry(appearance_row4, width=8)
+        self.label_color_entry.pack(side=tk.LEFT, padx=5)
+        self.label_color_entry.insert(0, "black")
+
         ttk.Label(appearance_row4, text="DPI:").pack(side=tk.LEFT, padx=15)
         self.ent_dpi = ttk.Entry(appearance_row4,width=5); self.ent_dpi.pack(side=tk.LEFT, padx=5); self.ent_dpi.insert(0,"100")
         ttk.Label(appearance_row4, text="Grosor línea:").pack(side=tk.LEFT, padx=5)
@@ -452,6 +463,8 @@ class MapTab(ttk.Frame):
         label_option = self.label_option_var.get()
         if label_option != "Ninguna":
             texts = []
+            label_size = int(self.label_size_entry.get())
+            label_color = self.label_color_entry.get()
             for _, r in gdf.iterrows():
                 if r.geometry is not None:
                     pt = r.geometry.representative_point()
@@ -464,12 +477,14 @@ class MapTab(ttk.Frame):
                         text_to_show = r[self.geojson_state_column_name]
                     elif label_option == "Número de Casos" and r["Casos"] > 0:
                         text_to_show = f"{r['Casos']:.0f}"
+                    elif label_option == "Nombre y Casos" and r["Casos"] > 0:
+                        text_to_show = f"{r[self.geojson_state_column_name]}\n({r['Casos']:.0f})"
 
                     if text_to_show:
-                        texts.append(ax.text(pt.x, pt.y, text_to_show, ha='center', fontsize=cbksz, color=cbkcol))
+                        texts.append(ax.text(pt.x, pt.y, text_to_show, ha='center', fontsize=label_size, color=label_color))
 
             if texts:
-                adjust_text(texts, ax=ax)
+                adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5))
 
         self.prevalence_var.set(f"{gdf[col_to_plot].sum():.4f}")
         fig.tight_layout(); return fig
