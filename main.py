@@ -51,6 +51,7 @@ class MapTab(ttk.Frame):
         self.value_col_var = tk.StringVar()
         self.agg_method_var = tk.StringVar(value="count")
         self.label_option_var = tk.StringVar(value="Ninguna")
+        self.prevalence_factor_var = tk.StringVar(value="100,000")
         self.invert_cmap = tk.BooleanVar(value=False)
         self.state_entries = {}
         self.cases_data = None
@@ -61,6 +62,12 @@ class MapTab(ttk.Frame):
         self.geojson_state_column_name = None
 
         self.create_widgets()
+
+    def _toggle_prevalence_controls(self, event=None):
+        if self.visualization_var.get() == "Prevalencia":
+            self.prevalence_frame.grid()
+        else:
+            self.prevalence_frame.grid_remove()
 
     def create_widgets(self):
         paned = ttk.Panedwindow(self, orient="horizontal")
@@ -87,6 +94,14 @@ class MapTab(ttk.Frame):
         self.visualization_var = tk.StringVar(value="Prevalencia")
         self.visualization_combo = ttk.Combobox(select_frame, textvariable=self.visualization_var, values=["Prevalencia", "Casos Totales", "Población"], state="readonly", width=15)
         self.visualization_combo.grid(row=3, column=1, padx=5, pady=2, sticky="w")
+        self.visualization_combo.bind("<<ComboboxSelected>>", self._toggle_prevalence_controls)
+
+        self.prevalence_frame = ttk.Frame(select_frame)
+        self.prevalence_frame.grid(row=4, column=0, columnspan=2, sticky="ew")
+
+        ttk.Label(self.prevalence_frame, text="Factor Prevalencia:").grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        self.prevalence_factor_combo = ttk.Combobox(self.prevalence_frame, textvariable=self.prevalence_factor_var, values=["1,000", "10,000", "100,000"], state="readonly", width=10)
+        self.prevalence_factor_combo.grid(row=0, column=1, padx=5, pady=2, sticky="w")
 
         select_frame.columnconfigure(1, weight=1)
 
@@ -212,6 +227,8 @@ class MapTab(ttk.Frame):
         self.frm_map = ttk.Frame(self.canvas_map)
         self.canvas_map.create_window((0,0), window=self.frm_map, anchor="nw")
         self.frm_map.bind("<Configure>", lambda e: self.canvas_map.configure(scrollregion=self.canvas_map.bbox("all")))
+
+        self._toggle_prevalence_controls()
 
     def export_to_excel(self):
         if not self.state_entries:
@@ -410,13 +427,16 @@ class MapTab(ttk.Frame):
         self.toolbar.update()
 
         self.canvas_map.config(scrollregion=self.canvas_map.bbox("all"))
+        # El botón "Generar Mapa" llama a esta función (show_map), que a su vez
+        # llama a make_fig. Esto asegura que el mapa se redibuja desde cero
+        # cada vez, aplicando todos los cambios de la interfaz.
 
     def make_fig(self):
         if not self.state_entries or self.gdf_data is None:
             messagebox.showwarning("Aviso", "Cargue un archivo GeoJSON y asegúrese de que haya datos de regiones.")
             return None
 
-        # Construir DataFrame directamente desde las entradas de la UI
+        # --- Construir DataFrame desde la UI ---
         data = []
         for state_name, (pop_entry, case_entry) in self.state_entries.items():
             try:
@@ -428,76 +448,110 @@ class MapTab(ttk.Frame):
             except ValueError:
                 casos = 0.0
             data.append({self.geojson_state_column_name: state_name, "Poblacion": poblacion, "Casos": casos})
-
         df_from_ui = pd.DataFrame(data)
-
         gdf = self.gdf_data.merge(df_from_ui, on=self.geojson_state_column_name, how="left")
 
-        pal,ncol,inv,scale,dpi,lw,vmin,vmax_s,nt,vals = self.cmb_palette.get(),int(self.ent_pal_n.get()) if self.ent_pal_n.get().isdigit() else 0,self.invert_cmap.get(),self.cmb_scale.get(),int(self.ent_dpi.get()),float(self.ent_lw.get()),float(self.ent_vmin.get()),self.ent_vmax.get().strip(),int(self.ent_nt.get()),self.ent_vals.get().strip()
-        vmax = float(vmax_s) if vmax_s else None
-        title,tcol,tsz,subt,scol,ssz,cbt,cbtcol,cbtsz,cbkcol,cbksz = self.ent_title.get().strip(),self.ent_tcol.get().strip() or "black",float(self.ent_tsz.get()),self.ent_sub.get().strip(),self.ent_scol.get().strip() or "gray",float(self.ent_ssz.get()),self.ent_cbt.get().strip(),self.ent_cbtcol.get().strip() or "black",float(self.ent_cbtsz.get()),self.ent_cbkcol.get().strip() or "black",float(self.ent_cbksz.get())
-
+        # --- Lógica de Visualización ---
         visualization = self.visualization_var.get()
         if visualization == "Prevalencia":
             col_to_plot = "Prevalencia"
+            factor = int(self.prevalence_factor_var.get().replace(',', ''))
             gdf["Poblacion"] = pd.to_numeric(gdf["Poblacion"], errors='coerce').fillna(0)
             gdf["Casos"] = pd.to_numeric(gdf["Casos"], errors='coerce').fillna(0)
-            gdf[col_to_plot] = gdf.apply(lambda row: row['Casos'] / row['Poblacion'] if row['Poblacion'] > 0 else 0, axis=1)
-
+            gdf[col_to_plot] = gdf.apply(lambda row: (row['Casos'] / row['Poblacion']) * factor if row['Poblacion'] > 0 else 0, axis=1)
         elif visualization == "Casos Totales":
             col_to_plot = "Casos"
             gdf[col_to_plot] = pd.to_numeric(gdf[col_to_plot], errors='coerce').fillna(0)
-
-        elif visualization == "Población":
+        else: # Población
             col_to_plot = "Poblacion"
             gdf[col_to_plot] = pd.to_numeric(gdf[col_to_plot], errors='coerce').fillna(0)
 
-        if vmax is None: vmax = gdf[col_to_plot].max() if not gdf[col_to_plot].empty else 1
-        thresh = 0.1 if vmax > 10 else 0.01
-        if scale=="Logarítmica": norm = SymLogNorm(linthresh=thresh, linscale=1, vmin=vmin, vmax=vmax)
-        else: norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+        # --- Lectura robusta de parámetros de la UI con valores por defecto ---
+        try:
+            pal = self.cmb_palette.get()
+            ncol = int(self.ent_pal_n.get()) if self.ent_pal_n.get() else 0
+            inv = self.invert_cmap.get()
+            scale = self.cmb_scale.get()
+            dpi = int(self.ent_dpi.get()) if self.ent_dpi.get() else 100
+            lw = float(self.ent_lw.get()) if self.ent_lw.get() else 1.0
+
+            vmin_s = self.ent_vmin.get().strip()
+            vmax_s = self.ent_vmax.get().strip()
+            nt_s = self.ent_nt.get().strip()
+            vals_s = self.ent_vals.get().strip()
+
+            title = self.ent_title.get().strip()
+            tcol = self.ent_tcol.get().strip() or "black"
+            tsz = float(self.ent_tsz.get() or 14)
+            subt = self.ent_sub.get().strip()
+            scol = self.ent_scol.get().strip() or "gray"
+            ssz = float(self.ent_ssz.get() or 10)
+            cbt = self.ent_cbt.get().strip()
+            cbtcol = self.ent_cbtcol.get().strip() or "black"
+            cbtsz = float(self.ent_cbtsz.get() or 10)
+            cbkcol = self.ent_cbkcol.get().strip() or "black"
+            cbksz = float(self.ent_cbksz.get() or 8)
+
+        except (ValueError, TypeError) as e:
+            self.log(f"Error en parámetro de apariencia: {e}", "ERROR")
+            messagebox.showerror("Error de Parámetro", f"Valor inválido en la configuración de apariencia: {e}")
+            return None
+
+        # --- Cálculos automáticos para la barra de colores ---
+        vmin = float(vmin_s) if vmin_s else gdf[col_to_plot].min()
+        vmax = float(vmax_s) if vmax_s else gdf[col_to_plot].max()
+        if vmax == vmin: vmax = vmin + 1
+
+        # --- Creación del mapa ---
+        norm = SymLogNorm(linthresh=0.1, linscale=1, vmin=vmin, vmax=vmax) if scale=="Logarítmica" else matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
         base = matplotlib.colormaps[pal]
-        if ncol>0: colors = base(np.linspace(0,1,ncol)); cmap = ListedColormap(colors)
-        else: cmap = base
+        cmap = ListedColormap(base(np.linspace(0,1,ncol))) if ncol > 0 else base
         if inv: cmap = cmap.reversed()
+
         fig = Figure(figsize=(10,8), dpi=dpi); ax = fig.add_subplot(111)
         gdf.plot(column=col_to_plot, cmap=cmap, norm=norm, edgecolor="black", linewidth=lw, ax=ax, missing_kwds={'color': 'lightgrey', "hatch": "///", "label": "Sin datos"})
 
-        # Lógica de Zoom por región
+        # --- Lógica de Zoom por región ---
         zoom_region = self.zoom_region_var.get()
         if zoom_region:
             region_geom = gdf[gdf[self.geojson_state_column_name] == zoom_region]
             if not region_geom.empty:
-                bounds = region_geom.total_bounds
-                ax.set_xlim(bounds[0] - 0.1, bounds[2] + 0.1)
-                ax.set_ylim(bounds[1] - 0.1, bounds[3] + 0.1)
+                ax.set_xlim(region_geom.total_bounds[0] - 0.1, region_geom.total_bounds[2] + 0.1)
+                ax.set_ylim(region_geom.total_bounds[1] - 0.1, region_geom.total_bounds[3] + 0.1)
 
         ax.set_axis_off()
 
-        metric_display = self.visualization_var.get()
-        subtitle_display_state_col = self.geojson_state_column_name
-        default_title = title if title else f"Mapa Coroplético - {metric_display}"
-        default_subtitle = subt if subt else f"Agregado por {subtitle_display_state_col}"
-        ax.set_title(default_title, color=tcol, fontsize=tsz, pad=20)
-        ax.text(0.5, 0.96, default_subtitle, transform=ax.transAxes, ha='center', color=scol, fontsize=ssz)
+        # --- Títulos ---
+        ax.set_title(title or f"Mapa Coroplético - {visualization}", color=tcol, fontsize=tsz, pad=20)
+        ax.text(0.5, 0.96, subt or f"Agregado por {self.geojson_state_column_name}", transform=ax.transAxes, ha='center', color=scol, fontsize=ssz)
+
+        # --- Barra de colores y Ticks ---
         sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap); sm._A=[]
-        if vals:
-            try: ticks = [float(x) for x in vals.split(",")]
-            except: ticks = np.linspace(vmin,vmax,nt)
-        else: ticks = np.linspace(vmin,vmax,nt)
+        try:
+            if vals_s:
+                ticks = [float(x.strip()) for x in vals_s.split(",")]
+            else:
+                nt = int(nt_s) if nt_s else 6
+                ticks = np.linspace(vmin, vmax, nt)
+        except (ValueError, TypeError):
+            ticks = np.linspace(vmin, vmax, 6)
+
         cbar = fig.colorbar(sm, ax=ax, ticks=ticks)
-        for spine in cbar.ax.spines.values(): spine.set_edgecolor(cbtcol); spine.set_linewidth(1)
         cbar.ax.tick_params(color=cbkcol, labelcolor=cbkcol, width=1)
         cbar.ax.set_yticklabels([f"{t:.2f}" for t in ticks], fontsize=cbksz, color=cbkcol)
-        default_cbt = cbt if cbt else metric_display
-        cbar.set_label(default_cbt, fontsize=cbtsz, color=cbtcol)
+        cbar.set_label(cbt or visualization, fontsize=cbtsz, color=cbtcol)
 
+        # --- Etiquetas ---
         label_option = self.label_option_var.get()
         if label_option != "Ninguna":
             texts = []
-            label_size = int(self.label_size_entry.get())
-            label_color = self.label_color_entry.get()
-            label_font = self.label_font_entry.get()
+            try:
+                label_size = int(self.label_size_entry.get() or 8)
+                label_color = self.label_color_entry.get() or "black"
+                label_font = self.label_font_entry.get() or "sans-serif"
+            except (ValueError, TypeError):
+                label_size, label_color, label_font = 8, "black", "sans-serif"
+
             for _, r in gdf.iterrows():
                 if r.geometry is not None:
                     pt = r.geometry.representative_point()
@@ -511,7 +565,10 @@ class MapTab(ttk.Frame):
                     elif label_option == "Número de Casos" and r["Casos"] > 0:
                         text_to_show = f"{r['Casos']:.0f}"
                     elif label_option == "Nombre y Casos" and r["Casos"] > 0:
-                        text_to_show = f"{r[self.geojson_state_column_name]}\n({r['Casos']:.0f})"
+                        if visualization == "Prevalencia":
+                            text_to_show = f"{r[self.geojson_state_column_name]}\n({r[col_to_plot]:.2f})"
+                        else:
+                            text_to_show = f"{r[self.geojson_state_column_name]}\n({r['Casos']:.0f})"
 
                     if text_to_show:
                         texts.append(ax.text(pt.x, pt.y, text_to_show, ha='center', fontsize=label_size, color=label_color, fontname=label_font))
