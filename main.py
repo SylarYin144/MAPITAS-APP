@@ -81,9 +81,6 @@ class MapTab(ttk.Frame):
         self.state_data_frame = ttk.Frame(state_data_canvas); state_data_canvas.create_window((0, 0), window=self.state_data_frame, anchor="nw")
         self.state_data_frame.bind("<Configure>", lambda e: state_data_canvas.configure(scrollregion=state_data_canvas.bbox("all")))
 
-        load_csv_button = ttk.Button(state_data_lf, text="Cargar Población desde CSV", command=self.load_population_from_csv)
-        load_csv_button.pack(pady=(2,5))
-
         ctrl_appearance = ttk.LabelFrame(frm_left, text="Apariencia del Mapa"); ctrl_appearance.pack(fill=tk.X, padx=5, pady=5)
         appearance_row1 = ttk.Frame(ctrl_appearance); appearance_row1.pack(fill=tk.X, pady=2)
         ttk.Label(appearance_row1, text="Paleta:").pack(side=tk.LEFT, padx=5)
