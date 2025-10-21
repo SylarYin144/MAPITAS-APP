@@ -10,6 +10,7 @@ import matplotlib
 from matplotlib.colors import SymLogNorm, ListedColormap
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from adjustText import adjust_text
 import os # Añadido para manejo de archivos
 import traceback # Añadido para logging de errores
 
@@ -33,7 +34,7 @@ class MapTab(ttk.Frame):
         self.state_col_var = tk.StringVar()
         self.value_col_var = tk.StringVar()
         self.agg_method_var = tk.StringVar(value="count")
-        self.show_labels = tk.BooleanVar(value=True)
+        self.label_option_var = tk.StringVar(value="Ninguna")
         self.invert_cmap = tk.BooleanVar(value=False)
         self.state_entries = {}
         self.cases_data = None
@@ -102,7 +103,9 @@ class MapTab(ttk.Frame):
         ttk.Label(appearance_row3, text="Valores CB (coma):").pack(side=tk.LEFT, padx=5)
         self.ent_vals = ttk.Entry(appearance_row3,width=15); self.ent_vals.pack(side=tk.LEFT, padx=5)
         appearance_row4 = ttk.Frame(ctrl_appearance); appearance_row4.pack(fill=tk.X, pady=2)
-        ttk.Checkbutton(appearance_row4, text="Mostrar Nombres", variable=self.show_labels).pack(side=tk.LEFT, padx=5)
+        ttk.Label(appearance_row4, text="Etiquetas:").pack(side=tk.LEFT, padx=5)
+        self.label_combo = ttk.Combobox(appearance_row4, textvariable=self.label_option_var, values=["Ninguna", "Nombres de Región", "Nombres (solo con casos)", "Número de Casos"], state="readonly", width=25)
+        self.label_combo.pack(side=tk.LEFT, padx=5)
         ttk.Label(appearance_row4, text="DPI:").pack(side=tk.LEFT, padx=15)
         self.ent_dpi = ttk.Entry(appearance_row4,width=5); self.ent_dpi.pack(side=tk.LEFT, padx=5); self.ent_dpi.insert(0,"100")
         ttk.Label(appearance_row4, text="Grosor línea:").pack(side=tk.LEFT, padx=5)
@@ -429,12 +432,28 @@ class MapTab(ttk.Frame):
         cbar.ax.set_yticklabels([f"{t:.2f}" for t in ticks], fontsize=cbksz, color=cbkcol)
         default_cbt = cbt if cbt else metric_display
         cbar.set_label(default_cbt, fontsize=cbtsz, color=cbtcol)
-        if self.show_labels.get():
+
+        label_option = self.label_option_var.get()
+        if label_option != "Ninguna":
+            texts = []
             for _, r in gdf.iterrows():
-                if r.geometry is not None and pd.notnull(r[self.geojson_state_column_name]):
+                if r.geometry is not None:
                     pt = r.geometry.representative_point()
                     if pt.is_empty or not pt.is_valid: continue
-                    ax.annotate(r[self.geojson_state_column_name], xy=(pt.x, pt.y), ha='center', fontsize=cbksz, color=cbkcol)
+
+                    text_to_show = None
+                    if label_option == "Nombres de Región":
+                        text_to_show = r[self.geojson_state_column_name]
+                    elif label_option == "Nombres (solo con casos)" and r["Casos"] > 0:
+                        text_to_show = r[self.geojson_state_column_name]
+                    elif label_option == "Número de Casos" and r["Casos"] > 0:
+                        text_to_show = f"{r['Casos']:.0f}"
+
+                    if text_to_show:
+                        texts.append(ax.text(pt.x, pt.y, text_to_show, ha='center', fontsize=cbksz, color=cbkcol))
+
+            if texts:
+                adjust_text(texts, ax=ax)
 
         self.prevalence_var.set(f"{gdf[col_to_plot].sum():.4f}")
         fig.tight_layout(); return fig
