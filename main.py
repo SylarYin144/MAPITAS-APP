@@ -72,7 +72,30 @@ class MapTab(ttk.Frame):
     def create_widgets(self):
         paned = ttk.Panedwindow(self, orient="horizontal")
         paned.pack(fill=tk.BOTH, expand=True)
-        frm_left = ttk.Frame(paned); paned.add(frm_left, weight=1)
+
+        # --- Panel Izquierdo con Scroll ---
+        left_panel_container = ttk.Frame(paned)
+        paned.add(left_panel_container, weight=1)
+
+        canvas = tk.Canvas(left_panel_container)
+        scrollbar = ttk.Scrollbar(left_panel_container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # --- Contenido del Panel Izquierdo ---
+        frm_left = scrollable_frame # Ahora todo va dentro del frame con scroll
 
         ctrl_main = ttk.LabelFrame(frm_left, text="Configuración del Mapa")
         ctrl_main.pack(fill=tk.X, padx=5, pady=5)
@@ -205,6 +228,8 @@ class MapTab(ttk.Frame):
         ttk.Button(action_frame, text="Generar Mapa", command=self.show_map).pack(side=tk.LEFT, padx=10)
         ttk.Button(action_frame, text="Guardar Mapa", command=self.save_map).pack(side=tk.LEFT, padx=10)
         self.txt_out = tk.Text(frm_left, height=4); self.txt_out.pack(fill=tk.BOTH, padx=5, pady=5, expand=True)
+
+        # --- Panel Derecho ---
         frm_right = ttk.Frame(paned); paned.add(frm_right, weight=2)
 
         self.toolbar_frame = ttk.Frame(frm_right)
