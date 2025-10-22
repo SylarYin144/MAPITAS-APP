@@ -70,6 +70,11 @@ class MapTab(ttk.Frame):
             self.prevalence_frame.grid_remove()
 
     def create_widgets(self):
+        color_list = [
+            'black', 'white', 'red', 'green', 'blue', 'cyan', 'magenta', 'yellow',
+            'gray', 'darkgray', 'lightgray', 'darkred', 'darkgreen', 'darkblue',
+            'orange', 'purple', 'brown', 'pink', 'gold', 'navy', 'lime'
+        ]
         paned = ttk.Panedwindow(self, orient="horizontal")
         paned.pack(fill=tk.BOTH, expand=True)
 
@@ -171,9 +176,9 @@ class MapTab(ttk.Frame):
         self.label_size_entry.insert(0, "8")
 
         ttk.Label(appearance_row4, text="Color:").pack(side=tk.LEFT, padx=5)
-        self.label_color_entry = ttk.Entry(appearance_row4, width=8)
-        self.label_color_entry.pack(side=tk.LEFT, padx=5)
-        self.label_color_entry.insert(0, "black")
+        self.label_color_combo = ttk.Combobox(appearance_row4, values=color_list, width=8)
+        self.label_color_combo.pack(side=tk.LEFT, padx=5)
+        self.label_color_combo.set("black")
 
         ttk.Label(appearance_row4, text="Fuente:").pack(side=tk.LEFT, padx=5)
         self.label_font_entry = ttk.Entry(appearance_row4, width=15)
@@ -188,26 +193,26 @@ class MapTab(ttk.Frame):
         ttk.Label(appearance_row5, text="Título:").pack(side=tk.LEFT, padx=5)
         self.ent_title = ttk.Entry(appearance_row5,width=20); self.ent_title.pack(side=tk.LEFT, padx=5); self.ent_title.insert(0,"Mapa de México")
         ttk.Label(appearance_row5, text="Color:").pack(side=tk.LEFT, padx=5)
-        self.ent_tcol = ttk.Entry(appearance_row5,width=8); self.ent_tcol.pack(side=tk.LEFT, padx=5); self.ent_tcol.insert(0,"black")
+        self.tcol_combo = ttk.Combobox(appearance_row5, values=color_list, width=8); self.tcol_combo.pack(side=tk.LEFT, padx=5); self.tcol_combo.set("black")
         ttk.Label(appearance_row5, text="Tamaño:").pack(side=tk.LEFT, padx=5)
         self.ent_tsz = ttk.Entry(appearance_row5,width=5); self.ent_tsz.pack(side=tk.LEFT, padx=5); self.ent_tsz.insert(0,"14")
         appearance_row6 = ttk.Frame(ctrl_appearance); appearance_row6.pack(fill=tk.X, pady=2)
         ttk.Label(appearance_row6, text="Subtítulo:").pack(side=tk.LEFT, padx=5)
         self.ent_sub = ttk.Entry(appearance_row6,width=20); self.ent_sub.pack(side=tk.LEFT, padx=5); self.ent_sub.insert(0,"(Valor Agregado)")
         ttk.Label(appearance_row6, text="Color:").pack(side=tk.LEFT, padx=5)
-        self.ent_scol = ttk.Entry(appearance_row6,width=8); self.ent_scol.pack(side=tk.LEFT, padx=5); self.ent_scol.insert(0,"gray")
+        self.scol_combo = ttk.Combobox(appearance_row6, values=color_list, width=8); self.scol_combo.pack(side=tk.LEFT, padx=5); self.scol_combo.set("gray")
         ttk.Label(appearance_row6, text="Tamaño:").pack(side=tk.LEFT, padx=5)
         self.ent_ssz = ttk.Entry(appearance_row6,width=5); self.ent_ssz.pack(side=tk.LEFT, padx=5); self.ent_ssz.insert(0,"10")
         appearance_row7 = ttk.Frame(ctrl_appearance); appearance_row7.pack(fill=tk.X, pady=2)
         ttk.Label(appearance_row7, text="Título CB:").pack(side=tk.LEFT, padx=5)
         self.ent_cbt = ttk.Entry(appearance_row7,width=20); self.ent_cbt.pack(side=tk.LEFT, padx=5); self.ent_cbt.insert(0,"Valor")
         ttk.Label(appearance_row7, text="Color:").pack(side=tk.LEFT, padx=5)
-        self.ent_cbtcol = ttk.Entry(appearance_row7,width=8); self.ent_cbtcol.pack(side=tk.LEFT, padx=5); self.ent_cbtcol.insert(0,"black")
+        self.cbtcol_combo = ttk.Combobox(appearance_row7, values=color_list, width=8); self.cbtcol_combo.pack(side=tk.LEFT, padx=5); self.cbtcol_combo.set("black")
         ttk.Label(appearance_row7, text="Tamaño:").pack(side=tk.LEFT, padx=5)
         self.ent_cbtsz = ttk.Entry(appearance_row7,width=5); self.ent_cbtsz.pack(side=tk.LEFT, padx=5); self.ent_cbtsz.insert(0,"10")
         appearance_row8 = ttk.Frame(ctrl_appearance); appearance_row8.pack(fill=tk.X, pady=2)
         ttk.Label(appearance_row8, text="Etiquetas CB Color:").pack(side=tk.LEFT, padx=5)
-        self.ent_cbkcol = ttk.Entry(appearance_row8,width=8); self.ent_cbkcol.pack(side=tk.LEFT, padx=5); self.ent_cbkcol.insert(0,"black")
+        self.cbkcol_combo = ttk.Combobox(appearance_row8, values=color_list, width=8); self.cbkcol_combo.pack(side=tk.LEFT, padx=5); self.cbkcol_combo.set("black")
         ttk.Label(appearance_row8, text="Tamaño:").pack(side=tk.LEFT, padx=5)
         self.ent_cbksz = ttk.Entry(appearance_row8,width=5); self.ent_cbksz.pack(side=tk.LEFT, padx=5); self.ent_cbksz.insert(0,"8")
 
@@ -506,15 +511,15 @@ class MapTab(ttk.Frame):
             vals_s = self.ent_vals.get().strip()
 
             title = self.ent_title.get().strip()
-            tcol = self.ent_tcol.get().strip() or "black"
+            tcol = self.tcol_combo.get()
             tsz = float(self.ent_tsz.get() or 14)
             subt = self.ent_sub.get().strip()
-            scol = self.ent_scol.get().strip() or "gray"
+            scol = self.scol_combo.get()
             ssz = float(self.ent_ssz.get() or 10)
             cbt = self.ent_cbt.get().strip()
-            cbtcol = self.ent_cbtcol.get().strip() or "black"
+            cbtcol = self.cbtcol_combo.get()
             cbtsz = float(self.ent_cbtsz.get() or 10)
-            cbkcol = self.ent_cbkcol.get().strip() or "black"
+            cbkcol = self.cbkcol_combo.get()
             cbksz = float(self.ent_cbksz.get() or 8)
 
         except (ValueError, TypeError) as e:
@@ -547,8 +552,8 @@ class MapTab(ttk.Frame):
         ax.set_axis_off()
 
         # --- Títulos ---
-        ax.set_title(title or f"Mapa Coroplético - {visualization}", color=tcol, fontsize=tsz, pad=20)
-        ax.text(0.5, 0.96, subt or f"Agregado por {self.geojson_state_column_name}", transform=ax.transAxes, ha='center', color=scol, fontsize=ssz)
+        ax.set_title(title, color=tcol, fontsize=tsz, pad=20)
+        ax.text(0.5, 0.96, subt, transform=ax.transAxes, ha='center', color=scol, fontsize=ssz)
 
         # --- Barra de colores y Ticks ---
         sm = matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap); sm._A=[]
@@ -564,7 +569,7 @@ class MapTab(ttk.Frame):
         cbar = fig.colorbar(sm, ax=ax, ticks=ticks)
         cbar.ax.tick_params(color=cbkcol, labelcolor=cbkcol, width=1)
         cbar.ax.set_yticklabels([f"{t:.2f}" for t in ticks], fontsize=cbksz, color=cbkcol)
-        cbar.set_label(cbt or visualization, fontsize=cbtsz, color=cbtcol)
+        cbar.set_label(cbt, fontsize=cbtsz, color=cbtcol)
 
         # --- Etiquetas ---
         label_option = self.label_option_var.get()
