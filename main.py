@@ -217,7 +217,7 @@ class MapTab(ttk.Frame):
         self.ent_cbksz = ttk.Entry(appearance_row8,width=5); self.ent_cbksz.pack(side=tk.LEFT, padx=5); self.ent_cbksz.insert(0,"8")
 
         self.prevalence_var = tk.StringVar()
-        ttk.Label(appearance_row8, text="Prevalencia:").pack(side=tk.LEFT, padx=15)
+        ttk.Label(appearance_row8, text="Prevalencia General:").pack(side=tk.LEFT, padx=15)
         ttk.Label(appearance_row8, textvariable=self.prevalence_var).pack(side=tk.LEFT, padx=5)
 
         appearance_row9 = ttk.Frame(ctrl_appearance); appearance_row9.pack(fill=tk.X, pady=2)
@@ -606,7 +606,19 @@ class MapTab(ttk.Frame):
             if texts:
                 adjust_text(texts, ax=ax, arrowprops=dict(arrowstyle='-', color='gray', lw=0.5))
 
-        self.prevalence_var.set(f"{gdf[col_to_plot].sum():.4f}")
+        # --- Cálculo de la Prevalencia General ---
+        if visualization == "Prevalencia":
+            total_casos = gdf['Casos'].sum()
+            total_poblacion = gdf['Poblacion'].sum()
+            if total_poblacion > 0:
+                factor = int(self.prevalence_factor_var.get().replace(',', ''))
+                general_prevalence = (total_casos / total_poblacion) * factor
+                self.prevalence_var.set(f"{general_prevalence:.4f}")
+            else:
+                self.prevalence_var.set("N/A")
+        else:
+            self.prevalence_var.set("") # Limpiar si no es vista de prevalencia
+
         fig.tight_layout(); return fig
 
     def save_map(self):
