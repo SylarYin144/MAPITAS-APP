@@ -577,7 +577,7 @@ class MapTab(ttk.Frame):
             texts = []
             try:
                 label_size = int(self.label_size_entry.get() or 8)
-                label_color = self.label_color_entry.get() or "black"
+                label_color = self.label_color_combo.get()
                 label_font = self.label_font_entry.get() or "sans-serif"
             except (ValueError, TypeError):
                 label_size, label_color, label_font = 8, "black", "sans-serif"
